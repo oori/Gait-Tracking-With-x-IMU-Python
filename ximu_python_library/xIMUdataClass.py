@@ -35,8 +35,9 @@ class xIMUdataClass():
         try:
             self.CalInertialAndMagneticData = calIM.get_obj(self.FileNamePrefix, self.sr)
             dataImported = True
-        except:
-            print('')
+        except E:
+            print('ERROR!')
+            print(E)
         if not dataImported:
             print('No data was imported.')
             exit()

@@ -17,21 +17,67 @@ from mpl_toolkits.mplot3d import Axes3D
 # stopTime = 53
 # samplePeriod = 1/256
 
-filePath = 'datasets/spiralStairs'
-startTime = 4
-stopTime = 47
-samplePeriod = 1/256
+# filePath = 'datasets/spiralStairs'
+# startTime = 4
+# stopTime = 47
+# samplePeriod = 1/256
 
+filePath = 'datasets/test'
+startTime = 2
+stopTime = 35
+samplePeriod = 1/256
 
 def main():
     xIMUdata = xIMU.xIMUdataClass(filePath, 'InertialMagneticSampleRate', 1/samplePeriod)
     time = xIMUdata.CalInertialAndMagneticData.Time
-    gyrX = xIMUdata.CalInertialAndMagneticData.gyroscope[:,0]
-    gyrY = xIMUdata.CalInertialAndMagneticData.gyroscope[:,1]
-    gyrZ = xIMUdata.CalInertialAndMagneticData.gyroscope[:,2]
-    accX = xIMUdata.CalInertialAndMagneticData.accelerometer[:,0]
-    accY = xIMUdata.CalInertialAndMagneticData.accelerometer[:,1]
-    accZ = xIMUdata.CalInertialAndMagneticData.accelerometer[:,2]
+    
+
+    samplePeriod_ = (time[-1] - time[0]) / (len(time) - 1)
+    samplePeriod_ = round(samplePeriod_, 4)
+    print("read {} imu data with cycle={}hz (calculated={}hz)".format(len(time), 1/samplePeriod, 1/samplePeriod_))
+
+    gyrX = xIMUdata.CalInertialAndMagneticData.gyroscope[:,0] / 3.1415926 * 180
+    # gyrX = gyrX - gyrX.mean()
+    gyrY = xIMUdata.CalInertialAndMagneticData.gyroscope[:,1] / 3.1415926 * 180
+    # gyrY = gyrY - gyrY.mean()
+    gyrZ = xIMUdata.CalInertialAndMagneticData.gyroscope[:,2] / 3.1415926 * 180
+    # gyrZ = gyrZ - gyrZ.mean()
+        
+
+    acc_misalignment = np.array([
+        1,  -0.0020787, -0.00262097,
+        0,           1,  -0.0040836,
+        -0,           0,           1,
+    ]).reshape([3, 3])
+    acc_scale = np.array([1.00813, 1.00447, 1.00714])
+    acc_bias = np.array([-0.0426319,  -0.114644, -0.0283882])
+
+    acc = xIMUdata.CalInertialAndMagneticData.accelerometer[:, 0:3]
+    acc = acc - acc.mean()
+    
+    acc_mean_1000 = acc[:1000].mean(axis=0)
+    print("before calib: {}, {}".format(acc_mean_1000, np.linalg.norm(acc_mean_1000)))
+    acc = np.matmul(acc_misalignment, (acc_scale * (acc - acc_bias)).T).T
+    acc_mean_1000 = acc[:1000].mean(axis=0)
+    print("before calib: {}, {}".format(acc_mean_1000, np.linalg.norm(acc_mean_1000)))
+    acc = acc / 9.8
+
+    accX = acc[:, 0]
+    # accX = accX - accX.mean()
+    accY = acc[:, 1]
+    # accY = accY - accY.mean()
+    accZ = acc[:, 2]
+    # accZ = accZ - accZ.mean()
+
+
+    # g = 9.81
+    # accX = xIMUdata.CalInertialAndMagneticData.accelerometer[:, 0] / g
+    # # accX = accX / g
+    # # accX = (accX - accX.mean()) / g
+    # accY = xIMUdata.CalInertialAndMagneticData.accelerometer[:, 1] / g
+    # # accY = accY / g
+    # accZ = xIMUdata.CalInertialAndMagneticData.accelerometer[:, 2] / g
+    # accZ = accZ - accZ.mean()
 
     indexSel = np.all([time>=startTime,time<=stopTime], axis=0)
     time = time[indexSel]
@@ -45,6 +91,8 @@ def main():
 
     # Compute accelerometer magnitude
     acc_mag = np.sqrt(accX*accX+accY*accY+accZ*accZ)
+    # acc_mag = np.linalg.norm(acc, axis=1)
+    print("acc_mag mean: %f" % acc_mag.mean())
 
     # HP filter accelerometer data
     filtCutOff = 0.001
@@ -61,7 +109,9 @@ def main():
 
 
     # Threshold detection
-    stationary = acc_magFilt < 0.05
+    # stationary = acc_magFilt < 0.05
+    stationary = np.less(acc_magFilt, 0.050)
+    print("stationary rate:{}".format(1.0 * stationary.sum() / len(stationary)))
 
     fig = plt.figure(figsize=(10, 5))
     ax1 = fig.add_subplot(2,1,1)
@@ -117,6 +167,7 @@ def main():
     acc = np.array(acc)
     acc = acc - np.array([0,0,1])
     acc = acc * 9.81
+    # print("acc:{}".format(acc))
 
     # Compute translational velocities
     # acc[:,2] = acc[:,2] - 9.81
@@ -132,8 +183,10 @@ def main():
     velDrift = np.zeros(vel.shape)
     stationaryStart = np.where(np.diff(stationary.astype(int)) == -1)[0]+1
     stationaryEnd = np.where(np.diff(stationary.astype(int)) == 1)[0]+1
-    for i in range(0,stationaryEnd.shape[0]):
-        driftRate = vel[stationaryEnd[i]-1,:] / (stationaryEnd[i] - stationaryStart[i])
+    for i in range(0,stationaryStart.shape[0]):
+        moo1 = vel[stationaryEnd[i]-1,:]
+        moo2 = (stationaryEnd[i] - stationaryStart[i])
+        driftRate = moo1 / moo2
         enum = np.arange(0,stationaryEnd[i]-stationaryStart[i])
         drift = np.array([enum*driftRate[0], enum*driftRate[1], enum*driftRate[2]]).T
         velDrift[stationaryStart[i]:stationaryEnd[i],:] = drift

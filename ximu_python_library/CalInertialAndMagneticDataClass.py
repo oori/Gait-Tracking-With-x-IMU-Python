@@ -25,7 +25,7 @@ class CalInertialAndMagneticDataClass():
         self.AccelerometerUnits = 'g';
         self.MagnetometerUnits = 'G';
         data = np.loadtxt(filename+self.FileNameAppendage,
-                            delimiter=',',skiprows=1)
+                            delimiter=',',skiprows=10)  # TODO: temp, skip 10 rows, should be set to 1 (only skip head)
         # self.InertialAndMagneticDataBase = InertialAndMagneticDataBaseClass(data)
         self.set_dataformat(data)
         self.packetNum = data.shape[0]
@@ -34,7 +34,7 @@ class CalInertialAndMagneticDataClass():
     def set_dataformat(self, data):
         self.gyroscope = data[:,1:4]
         self.accelerometer = data[:,4:7]
-        self.magnetometer = data[:,7:10]
+        # self.magnetometer = data[:,7:10]
 
 
 
